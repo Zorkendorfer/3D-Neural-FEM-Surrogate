@@ -1,0 +1,36 @@
+project_name: "3D_Neural_FEM_Surrogate"
+
+paths:
+  cad_template: "cad/templates/beam_template.ipt"
+  cad_output_dir: "cad/generated"
+  fea_output_dir: "fea/exports"
+  logs_dir: "logs"
+
+geometry:
+  parameters:
+    - name: "LENGTH"
+      unit: "mm"
+    - name: "WIDTH"
+      unit: "mm"
+    - name: "HEIGHT"
+      unit: "mm"
+    - name: "FILLET"
+      unit: "mm"
+    - name: "HOLE_DIAMETER"
+      unit: "mm"
+
+sampling:
+  n_samples: 1000
+  ranges:
+    LENGTH: [100.0, 250.0]
+    WIDTH: [20.0, 50.0]
+    HEIGHT: [5.0, 20.0]
+    FILLET: [1.0, 5.0]
+    HOLE_DIAMETER: [5.0, 15.0]
+
+simulation:
+  material: "Structural Steel"
+  mesh_size: 2.0  # mm
+  load_magnitude: 1000.0 # Newtons
+  fixed_face_name: "Face1" # Named entities in template
+  load_face_name: "Face2"
