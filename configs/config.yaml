@@ -1,5 +1,6 @@
 project_name: "3D_Neural_FEM_Surrogate"
 
+# All paths are relative to the repository root.
 paths:
   cad_template: "cad/templates/beam_template.ipt"
   cad_output_dir: "cad/generated"
@@ -30,7 +31,7 @@ sampling:
 
 simulation:
   material: "Structural Steel"
-  mesh_size: 2.0  # mm
-  load_magnitude: 1000.0 # Newtons
-  fixed_face_name: "Face1" # Named entities in template
+  mesh_size: 2.0          # mm
+  load_magnitude: 1000.0  # Newtons
+  fixed_face_name: "Face1"  # Named entities in the Inventor template.
   load_face_name: "Face2"

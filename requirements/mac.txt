@@ -1,0 +1,19 @@
+# Mac environment - ML training, preprocessing, and visualization.
+# Target: Python 3.11. Install with: pip install -r requirements/mac.txt
+torch
+torchvision
+lightning
+wandb
+numpy
+scipy
+pandas
+polars
+h5py
+pyyaml
+loguru
+tqdm
+matplotlib
+plotly
+open3d
+trimesh
+scikit-learn

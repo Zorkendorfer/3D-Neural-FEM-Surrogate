@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Generated artifacts
+cad/generated/*
+fea/exports/*
+fea/runs/*
+datasets/raw/*
+datasets/processed/*
+datasets/metadata/*
+logs/*
+models/checkpoints/*
+*.h5
+*.ipt
+
+# Experiment tracking
+wandb/
+lightning_logs/
+
+# Keep empty directories tracked
+!**/.gitkeep
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

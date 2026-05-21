@@ -1,0 +1,10 @@
+# Windows environment - CAD generation and FEA automation.
+# Target: Python 3.11. Install with: pip install -r requirements/windows.txt
+pywin32
+numpy
+pandas
+h5py
+pyyaml
+loguru
+tqdm
+scipy
