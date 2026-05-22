@@ -41,7 +41,7 @@ def _eval(model, loader, device, criterion):
     with torch.no_grad():
         for batch in loader:
             batch = batch.to(device)
-            with torch.autocast(device_type=device.type, dtype=_AMP_DTYPE, enabled=device.type == "cuda"):
+            with torch.autocast(device_type=device.type, dtype=_AMP_DTYPE, enabled=device.type in ("cuda", "mps")):
                 pred = model(batch)
                 loss = criterion(pred, batch.y)
             total_loss += loss.item()
@@ -56,7 +56,12 @@ def train(
     lr:         float = 1e-3,
     batch_size: int   = 4,
 ):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     logger.info(f"Device: {device}")
     ml_dir = ROOT / "ml"
 
@@ -100,7 +105,7 @@ def train(
         for batch in loaders["train"]:
             batch = batch.to(device)
             optimizer.zero_grad()
-            with torch.autocast(device_type=device.type, dtype=_AMP_DTYPE, enabled=device.type == "cuda"):
+            with torch.autocast(device_type=device.type, dtype=_AMP_DTYPE, enabled=device.type in ("cuda", "mps")):
                 loss = criterion(model(batch), batch.y)
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
