@@ -8,3 +8,4 @@ pyyaml
 loguru
 tqdm
 scipy
+pyNastran

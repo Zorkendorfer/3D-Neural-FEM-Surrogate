@@ -1,91 +1,77 @@
-"""Phase 5 - Baseline model training.
-
-Trains the MLP baseline that predicts [max_stress, max_displacement] from
-geometry parameters. Runs on a Mac (uses Metal/MPS automatically).
-"""
-
-import sys
-from pathlib import Path
-
-import yaml
-import h5py
 import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+import h5py
 import numpy as np
-import lightning as L
-from torch.utils.data import Dataset, DataLoader, random_split
-from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
+from loguru import logger
 
-# parents[1]: training/train_baseline.py -> repo root
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from models.baselines.mlp_model import FEMBaselineMLP
-
-
-class FEMDataset(Dataset):
-    def __init__(self, h5_path):
-        with h5py.File(h5_path, "r") as f:
-            self.inputs = torch.tensor(f["inputs"][:], dtype=torch.float32)
-            # Stack the scalar targets into a single [max_stress, max_disp] vector.
-            max_s = f["max_stress"][:].reshape(-1, 1)
-            max_d = f["max_disp"][:].reshape(-1, 1)
-            self.targets = torch.tensor(
-                np.hstack([max_s, max_d]), dtype=torch.float32
-            )
-
-    def __len__(self):
-        return len(self.inputs)
-
-    def __getitem__(self, idx):
-        return self.inputs[idx], self.targets[idx]
-
+class ScalarSurrogateMLP(nn.Module):
+    def __init__(self, input_dim=5, hidden_dim=64):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 2) # [Max Stress, Max Displacement]
+        )
+        
+    def forward(self, x):
+        return self.net(x)
 
 def train():
-    config_path = ROOT / "configs" / "config.yaml"
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
+    # 1. Load Data
+    ds_path = "datasets/processed/dataset.h5"
+    with h5py.File(ds_path, "r") as f:
+        X = torch.tensor(f["inputs"][:], dtype=torch.float32)
+        # Stack targets: Max Stress (index 0) and Max Displacement (index 1)
+        y_stress = torch.tensor(f["max_stress"][:], dtype=torch.float32).unsqueeze(1)
+        y_disp = torch.tensor(f["max_disp"][:], dtype=torch.float32).unsqueeze(1)
+        Y = torch.cat([y_stress, y_disp], dim=1)
 
-    L.seed_everything(42)
+    # 2. Simple Normalization
+    X_mean, X_std = X.mean(0), X.std(0)
+    X = (X - X_mean) / (X_std + 1e-6)
+    
+    # 3. Split
+    train_size = int(0.8 * len(X))
+    train_ds = TensorDataset(X[:train_size], Y[:train_size])
+    val_ds = TensorDataset(X[train_size:], Y[train_size:])
+    
+    train_loader = DataLoader(train_ds, batch_size=16, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=16)
 
-    ds_path = ROOT / "datasets" / "processed" / "dataset.h5"
-    if not ds_path.exists():
-        print(f"Dataset not found at {ds_path}. Run preprocessing first!")
-        return
+    # 4. Model Setup
+    model = ScalarSurrogateMLP()
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-    full_dataset = FEMDataset(ds_path)
-    train_size = int(0.7 * len(full_dataset))
-    val_size = int(0.15 * len(full_dataset))
-    test_size = len(full_dataset) - train_size - val_size
-    train_ds, val_ds, test_ds = random_split(
-        full_dataset, [train_size, val_size, test_size]
-    )
+    logger.info("Starting Baseline Training...")
+    for epoch in range(100):
+        model.train()
+        total_loss = 0
+        for batch_x, batch_y in train_loader:
+            optimizer.zero_grad()
+            pred = model(batch_x)
+            loss = criterion(pred, batch_y)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+        
+        if epoch % 10 == 0:
+            model.eval()
+            with torch.no_grad():
+                val_loss = sum(criterion(model(bx), by).item() for bx, by in val_loader) / len(val_loader)
+            logger.info(f"Epoch {epoch} | Train Loss: {total_loss/len(train_loader):.4f} | Val Loss: {val_loss:.4f}")
 
-    train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=32)
-
-    input_dim = len(config["geometry"]["parameters"])
-    model = FEMBaselineMLP(input_dim=input_dim)
-
-    wandb_logger = WandbLogger(project=config["project_name"], name="baseline_mlp")
-    checkpoint_callback = ModelCheckpoint(
-        dirpath=ROOT / "models" / "checkpoints",
-        filename="baseline-{epoch:02d}-{val_loss:.4f}",
-        monitor="val_loss",
-        mode="min",
-    )
-    early_stop = EarlyStopping(monitor="val_loss", patience=20)
-
-    trainer = L.Trainer(
-        max_epochs=200,
-        logger=wandb_logger,
-        callbacks=[checkpoint_callback, early_stop],
-        accelerator="auto",  # Uses Metal (MPS) on Mac automatically.
-        devices=1,
-    )
-    trainer.fit(model, train_loader, val_loader)
-    # trainer.test evaluation on test_ds can follow here.
-
+    # 5. Save Artifacts
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'x_mean': X_mean,
+        'x_std': X_std
+    }, "models/baselines/mlp_v1.pt")
+    logger.success("Baseline training complete. Model saved to models/baselines/mlp_v1.pt")
 
 if __name__ == "__main__":
     train()

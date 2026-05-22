@@ -4,8 +4,8 @@
 
 Build a machine learning surrogate model for 3D structural finite element analysis (FEA) using:
 
-- Autodesk Inventor
-- Autodesk Nastran In-CAD / Inventor Nastran
+- Gmsh (Python API)
+- scikit-fem
 - Python
 - PyTorch
 
@@ -55,30 +55,14 @@ Validation + Visualization
 
 # PHASE 0 — ENVIRONMENT SETUP
 
-# Objective
-
-Create stable cross-platform development environment.
-
----
-
-# Windows Responsibilities
-
-Use Windows ONLY for:
-- Autodesk Inventor
-- Nastran solving
-- CAD automation
-- Dataset generation
+# Objective: Unified Python Environment
+The project is now platform-agnostic. Both Windows and Mac can run the full pipeline.
 
 ---
 
-# Mac Responsibilities
+# Python Version
 
-Use Mac for:
-- ML training
-- Visualization
-- Experimentation
-- Research
-- Dataset preprocessing
+Use:
 
 ---
 
@@ -137,20 +121,7 @@ DO NOT use bleeding edge versions.
 
 # Core Dependencies
 
-## Windows
-
-```bash
-pip install:
-pywin32
-numpy
-pandas
-h5py
-pyyaml
-loguru
-tqdm
-```
-
-## Mac + ML
+## Unified Dependencies
 
 ```bash
 pip install:
@@ -158,12 +129,14 @@ torch
 torchvision
 lightning
 wandb
+scikit-fem
+gmsh
+meshio
 numpy
 scipy
 polars
 h5py
 matplotlib
-plotly
 open3d
 trimesh
 scikit-learn

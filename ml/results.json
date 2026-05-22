@@ -1,0 +1,8 @@
+{
+  "test_mse_log": 0.066403,
+  "r2_stress": 0.9798,
+  "r2_displacement": 0.9954,
+  "mare_stress_pct": 9.74,
+  "mare_displacement_pct": 4.9,
+  "best_epoch": 26
+}

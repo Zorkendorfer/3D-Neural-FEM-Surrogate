@@ -21,6 +21,12 @@ models/checkpoints/*
 wandb/
 lightning_logs/
 
+# ML graph cache (rebuilt automatically, too large for git)
+ml/graph_cache_*.pt
+
+# Claude session data
+.claude/
+
 # Keep empty directories tracked
 !**/.gitkeep
 

@@ -6,11 +6,15 @@ the regenerated part plus its metadata. Windows-only (requires Autodesk Inventor
 
 import os
 import json
+import subprocess
+import time
 from pathlib import Path
 
 import yaml
 import win32com.client
 from loguru import logger
+
+INVENTOR_2024_EXE = r"C:\Program Files\Autodesk\Inventor 2024\Bin\Inventor.exe"
 
 
 class InventorAutomation:
@@ -23,17 +27,28 @@ class InventorAutomation:
         self._connect_to_inventor()
 
     def _connect_to_inventor(self):
-        """Connect to a running Inventor instance, or start a new one."""
+        """Connect to a running Inventor 2024 instance, or launch one."""
         try:
             self.app = win32com.client.GetActiveObject("Inventor.Application")
-            logger.info("Connected to existing Inventor instance.")
+            version = getattr(self.app, "SoftwareVersion", None)
+            logger.info(f"Connected to running Inventor instance (version: {version}).")
         except Exception:
+            logger.info("No running Inventor instance found. Launching Inventor 2024...")
             try:
-                self.app = win32com.client.Dispatch("Inventor.Application")
-                self.app.Visible = True
-                logger.info("Started new Inventor instance.")
+                subprocess.Popen([INVENTOR_2024_EXE])
+                # Wait for Inventor to register in the ROT.
+                for _ in range(30):
+                    time.sleep(2)
+                    try:
+                        self.app = win32com.client.GetActiveObject("Inventor.Application")
+                        self.app.Visible = True
+                        logger.info("Inventor 2024 started and connected.")
+                        return
+                    except Exception:
+                        pass
+                raise RuntimeError("Inventor 2024 did not become available within 60 seconds.")
             except Exception as e:
-                logger.error(f"Failed to connect to Inventor: {e}")
+                logger.error(f"Failed to launch Inventor 2024: {e}")
                 raise
 
     def generate_sample(self, params: dict, sample_id: str):
