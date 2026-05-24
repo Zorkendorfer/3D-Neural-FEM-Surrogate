@@ -1,11 +1,11 @@
 {
-  "test_mse_norm": 0.02687,
-  "best_epoch": 187,
-  "mare_von_mises_pct": 14.21,
-  "r2_ux": 0.9805,
-  "rmse_ux": 0.007705,
-  "r2_uz": 0.9533,
-  "rmse_uz": 0.296619,
-  "r2_von_mises": 0.9161,
-  "rmse_von_mises": 20.640385
+  "test_mse_norm": 0.113532,
+  "best_epoch": 126,
+  "mare_von_mises_pct": 16.46,
+  "r2_ux": 0.9723,
+  "rmse_ux": 0.012293,
+  "r2_uz": 0.968,
+  "rmse_uz": 0.417358,
+  "r2_von_mises": 0.8376,
+  "rmse_von_mises": 40.244957
 }

@@ -38,9 +38,13 @@ def process_simulation_results(config_path: str):
 
     for sample_folder in sorted(raw_dir.glob("beam_*")):
         try:
-            # Geometry parameters (input features).
-            metadata_path = cad_dir / sample_folder.name / "metadata.json"
-            with open(metadata_path, "r") as f:
+            # Geometry parameters (input features). The current scikit-fem
+            # solver writes params.json alongside the FEA exports; the legacy
+            # Inventor flow wrote metadata.json under cad/generated/. Accept either.
+            params_path = sample_folder / "params.json"
+            if not params_path.exists():
+                params_path = cad_dir / sample_folder.name / "metadata.json"
+            with open(params_path, "r") as f:
                 params = list(json.load(f).values())
 
             # Result CSVs.
@@ -53,15 +57,12 @@ def process_simulation_results(config_path: str):
                 summary = json.load(f)
 
             # Merge nodes + stress, then sample a fixed-size point cloud.
+            # If the FEM mesh is coarser than N_TARGET_POINTS (typical for
+            # small-cross-section beams) sample with replacement so the small
+            # beams contribute redundant but valid points instead of being lost.
             data = pd.concat([nodes, stress], axis=1)
-            if len(data) < N_TARGET_POINTS:
-                # Mesh too coarse to sample the target point count - skip.
-                logger.warning(
-                    f"Skipping {sample_folder.name}: only {len(data)} nodes "
-                    f"(< {N_TARGET_POINTS})"
-                )
-                continue
-            sampled_data = data.sample(N_TARGET_POINTS, random_state=42)
+            replace = len(data) < N_TARGET_POINTS
+            sampled_data = data.sample(N_TARGET_POINTS, replace=replace, random_state=42)
 
             all_inputs.append(params)
             all_points.append(sampled_data[["x", "y", "z"]].values)

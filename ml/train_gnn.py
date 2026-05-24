@@ -1,8 +1,14 @@
 """Train the MeshGraphNet FEM surrogate and report per-field test metrics."""
 
 import json
+import os
 import sys
 from pathlib import Path
+
+# Lift the MPS memory high-watermark so PyTorch can use the full unified
+# memory on Apple Silicon (default caps allocations to a fraction). Must be
+# set before `import torch` so the MPS module reads it on initialisation.
+os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.0")
 
 import numpy as np
 import torch
@@ -99,10 +105,21 @@ def train(
 
     best_val, best_epoch, stale = float("inf"), 0, 0
 
-    pbar = tqdm(range(1, epochs + 1), desc="training", unit="epoch")
+    pbar = tqdm(range(1, epochs + 1), desc="training", unit="epoch", position=0)
     for epoch in pbar:
         model.train()
-        for batch in loaders["train"]:
+        train_loss_sum, n_train = 0.0, 0
+        # Inner bar shows live per-step progress within this epoch; leave=False
+        # so it disappears at epoch end and the scrollback only keeps the
+        # one-line per-epoch summary written further down.
+        inner = tqdm(
+            loaders["train"],
+            desc=f"  epoch {epoch:3d}/{epochs}",
+            unit="batch",
+            leave=False,
+            position=1,
+        )
+        for step, batch in enumerate(inner, 1):
             batch = batch.to(device)
             optimizer.zero_grad()
             with torch.autocast(device_type=device.type, dtype=_AMP_DTYPE, enabled=device.type in ("cuda", "mps")):
@@ -110,17 +127,37 @@ def train(
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
+            train_loss_sum += loss.item()
+            n_train += 1
+            inner.set_postfix(
+                step=f"{step}/{len(loaders['train'])}",
+                loss=f"{loss.item():.4f}",
+                avg=f"{train_loss_sum / n_train:.4f}",
+            )
+        inner.close()
+        train_loss = train_loss_sum / max(n_train, 1)
 
         val_loss = _eval(model, loaders["val"], device, criterion)
         scheduler.step(val_loss)
 
-        if val_loss < best_val:
+        improved = val_loss < best_val
+        if improved:
             best_val, best_epoch, stale = val_loss, epoch, 0
             torch.save(model.state_dict(), ml_dir / "best_gnn.pt")
         else:
             stale += 1
 
-        pbar.set_postfix(val=f"{val_loss:.4f}", best=f"{best_val:.4f}", stale=stale, lr=optimizer.param_groups[0]['lr'])
+        lr_now = optimizer.param_groups[0]["lr"]
+        # Persistent per-epoch line above the live progress bar; "*" marks a new best.
+        pbar.write(
+            f"epoch {epoch:3d}/{epochs}  train={train_loss:.4f}  val={val_loss:.4f}  "
+            f"best={best_val:.4f}  stale={stale:2d}  lr={lr_now:.1e}"
+            + ("  *" if improved else "")
+        )
+        pbar.set_postfix(
+            train=f"{train_loss:.4f}", val=f"{val_loss:.4f}",
+            best=f"{best_val:.4f}", stale=stale, lr=f"{lr_now:.1e}",
+        )
 
         if stale >= patience:
             logger.info(f"Early stop at epoch {epoch}.")
